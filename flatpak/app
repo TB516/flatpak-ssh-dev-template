@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+
+echo "Replace flatpak/app and flatpak/modules/app.yml with the application build."

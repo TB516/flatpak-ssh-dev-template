@@ -1,0 +1,12 @@
+name: template-app
+buildsystem: simple
+build-commands:
+  - install -Dm755 flatpak/app /app/bin/template-app
+sources:
+  - type: dir
+    path: ../..
+    skip:
+      - .flatpak-builder
+      - .flatpak-dev
+      - .git
+      - build-flatpak

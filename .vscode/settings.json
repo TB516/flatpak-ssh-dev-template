@@ -1,0 +1,19 @@
+{
+  "files.watcherExclude": {
+    ".flatpak-builder/**": true,
+    ".flatpak-dev/**": true,
+    "build-flatpak/**": true
+  },
+  "search.exclude": {
+    "**/.flatpak-builder": true,
+    "**/.flatpak-dev": true,
+    "**/build-flatpak": true
+  },
+  "search.followSymlinks": false,
+  "yaml.schemas": {
+    "https://www.schemastore.org/flatpak-manifest.json": [
+      "flatpak/io.github.example.TemplateApp.dev.yml",
+      "flatpak/io.github.example.TemplateApp.yml"
+    ]
+  }
+}

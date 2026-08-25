@@ -1,0 +1,17 @@
+id: io.github.example.TemplateApp
+runtime: org.freedesktop.Sdk
+runtime-version: "25.08"
+sdk: org.freedesktop.Sdk
+command: /app/sbin/sshd
+appstream-compose: false
+
+finish-args:
+  - --allow=devel
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+
+modules:
+  - modules/openssh.yml

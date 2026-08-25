@@ -1,0 +1,21 @@
+name: openssh
+buildsystem: simple
+build-commands:
+  - >-
+    ./configure
+    --prefix=/app
+    --sysconfdir=/app/etc/ssh
+    --with-default-path=/app/bin:/usr/bin
+    --with-pid-dir=/tmp
+    --with-privsep-path=/app/var/empty
+    --with-privsep-user=${USER}
+    --with-sandbox=no
+    --without-pam
+    --without-shadow
+  - make -j${FLATPAK_BUILDER_N_JOBS}
+  - make install-nokeys
+  - chmod 0755 /app/var/empty
+sources:
+  - type: archive
+    url: https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-10.4p1.tar.gz
+    sha256: ef6026dd2aea8d56059638d5d3262902c892ceba9f88395835e0d06d3fb63238
