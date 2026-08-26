@@ -25,6 +25,14 @@ On the first run, add the printed `Include` line near the top of the host `~/.ss
 
 The SSH host defaults to `<repository-directory>-flatpak`. Override it with `FLATPAK_DEV_SSH_HOST` if needed.
 
+To run a one-off command in the development Flatpak from the host, use:
+
+```sh
+./scripts/flatpak-dev run /bin/sh -c 'your-command'
+```
+
+The `run` command uses the development home and its generated profile without starting the application.
+
 ### Optional automatic startup
 
 Remote-SSH can run the launcher before connecting. Add this optional host user setting with the repository's actual path and generated SSH host:

@@ -109,6 +109,45 @@ show_service_logs() {
     journalctl --user -u "$SERVICE_NAME" --no-pager -n 40
 }
 
+write_dev_profile() {
+    mkdir -p "$DEV_HOME"
+    chmod 700 "$DEV_HOME"
+
+    cat > "$DEV_HOME/.profile" <<EOF
+export PATH="$DEV_PATH"
+EOF
+    chmod 600 "$DEV_HOME/.profile"
+}
+
+run_command() {
+    require_command flatpak-builder
+
+    if (($# == 0)); then
+        echo "Usage: $0 run <command> [args...]" >&2
+        exit 2
+    fi
+
+    if [[ ! -d "$BUILD_DIR/files" ]]; then
+        echo "The development Flatpak has not been built. Run '$0 start' first." >&2
+        exit 1
+    fi
+
+    write_dev_profile
+
+    flatpak-builder \
+        --run \
+        --filesystem="$PROJECT_ROOT" \
+        "$BUILD_DIR" \
+        "$MANIFEST" \
+        env \
+        "HOME=$DEV_HOME" \
+        "FLATPAK_DEV_PROJECT_ROOT=$PROJECT_ROOT" \
+        /bin/sh \
+        -c '. "$HOME/.profile"; cd "$FLATPAK_DEV_PROJECT_ROOT"; exec "$@"' \
+        sh \
+        "$@"
+}
+
 start_service() {
     require_command systemctl
     require_command systemd-run
@@ -206,10 +245,15 @@ case "${1:-start}" in
         journalctl --user -u "$SERVICE_NAME" -f
         exit
         ;;
+    run)
+        shift
+        run_command "$@"
+        exit
+        ;;
     serve)
         ;;
     *)
-        echo "Usage: $0 [start|stop|status|logs]" >&2
+        echo "Usage: $0 [start|stop|status|logs|run <command> [args...]]" >&2
         exit 2
         ;;
 esac
@@ -224,15 +268,9 @@ validate_settings
 readonly FLATPAK_ARCH="$(flatpak --default-arch)"
 readonly RUNTIME_LIBDIR="/usr/lib/$FLATPAK_ARCH-linux-gnu"
 
-mkdir -p "$SSH_DIR" "$DEV_HOME"
-chmod 700 "$SSH_DIR" "$DEV_HOME"
-
-# Some VS Code extensions discover tools from a fresh login shell instead of
-# inheriting the Remote-SSH environment. Give that shell the SDK tool path.
-cat > "$DEV_HOME/.profile" <<EOF
-export PATH="$DEV_PATH"
-EOF
-chmod 600 "$DEV_HOME/.profile"
+mkdir -p "$SSH_DIR"
+chmod 700 "$SSH_DIR"
+write_dev_profile
 
 trap cleanup EXIT
 trap 'exit 129' HUP
@@ -303,7 +341,7 @@ PermitTunnel no
 GatewayPorts no
 UseDNS no
 Subsystem sftp internal-sftp
-SetEnv HOME=$DEV_HOME PATH=$DEV_PATH FLATPAK_ID=$APP_ID FLATPAK_ARCH=$FLATPAK_ARCH container=flatpak DBUS_SESSION_BUS_ADDRESS=unix:path=/run/flatpak/bus LD_LIBRARY_PATH=/app/lib:$RUNTIME_LIBDIR/GL/default/lib PKG_CONFIG_PATH=/app/lib/pkgconfig:/app/share/pkgconfig C_INCLUDE_PATH=/app/include CPLUS_INCLUDE_PATH=/app/include LDFLAGS=-L/app/lib WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0} XDG_RUNTIME_DIR=/run/user/$(id -u) XDG_CACHE_HOME=$SANDBOX_HOME/cache XDG_CONFIG_HOME=$SANDBOX_HOME/config XDG_DATA_HOME=$SANDBOX_HOME/data XDG_STATE_HOME=$SANDBOX_HOME/.local/state XDG_CONFIG_DIRS=/app/etc/xdg:/etc/xdg XDG_DATA_DIRS=/app/share:/usr/share:/usr/share/runtime/share:/run/host/user-share:/run/host/share
+SetEnv HOME=$DEV_HOME BASH_ENV=$DEV_HOME/.profile ENV=$DEV_HOME/.profile PATH=$DEV_PATH FLATPAK_ID=$APP_ID FLATPAK_ARCH=$FLATPAK_ARCH container=flatpak DBUS_SESSION_BUS_ADDRESS=unix:path=/run/flatpak/bus LD_LIBRARY_PATH=/app/lib:$RUNTIME_LIBDIR/GL/default/lib PKG_CONFIG_PATH=/app/lib/pkgconfig:/app/share/pkgconfig C_INCLUDE_PATH=/app/include CPLUS_INCLUDE_PATH=/app/include LDFLAGS=-L/app/lib WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0} XDG_RUNTIME_DIR=/run/user/$(id -u) XDG_CACHE_HOME=$SANDBOX_HOME/cache XDG_CONFIG_HOME=$SANDBOX_HOME/config XDG_DATA_HOME=$SANDBOX_HOME/data XDG_STATE_HOME=$SANDBOX_HOME/.local/state XDG_CONFIG_DIRS=/app/etc/xdg:/etc/xdg XDG_DATA_DIRS=/app/share:/usr/share:/usr/share/runtime/share:/run/host/user-share:/run/host/share
 EOF
 chmod 600 "$SSH_DIR/sshd_config"
 
