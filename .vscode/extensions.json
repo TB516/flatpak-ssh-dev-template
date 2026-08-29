@@ -1,6 +1,7 @@
 {
   "recommendations": [
     "ms-vscode-remote.remote-ssh",
-    "redhat.vscode-yaml"
+    "oxc.oxc-vscode",
+    "typescriptteam.native-preview"
   ]
 }

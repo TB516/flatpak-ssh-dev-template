@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /app/node/bin/node /app/share/gtkx-app/bundle.mjs "$@"

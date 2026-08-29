@@ -1,4 +1,7 @@
+node_modules/
+dist/
+out-tsc/
+*.log
 .flatpak-builder/
 .flatpak-dev/
 build-flatpak/
-*.log

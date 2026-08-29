@@ -1,0 +1,27 @@
+name: gtkx-app
+buildsystem: simple
+build-options:
+  append-path: /usr/lib/sdk/node24/bin
+  build-args:
+    - --share=network
+build-commands:
+  - pnpm install --frozen-lockfile
+  - pnpm build
+  - /usr/lib/sdk/node24/install.sh
+  - install -Dm755 flatpak/gtkx-app /app/bin/gtkx-app
+  - install -Dm644 dist/bundle.mjs /app/share/gtkx-app/bundle.mjs
+  - install -Dm755 dist/gtkx.node /app/share/gtkx-app/gtkx.node
+  - install -Dm644 flatpak/io.github.example.GtkxApp.desktop /app/share/applications/io.github.example.GtkxApp.desktop
+  - install -Dm644 flatpak/io.github.example.GtkxApp.metainfo.xml /app/share/metainfo/io.github.example.GtkxApp.metainfo.xml
+  - install -Dm644 assets/io.github.example.GtkxApp.svg /app/share/icons/hicolor/scalable/apps/io.github.example.GtkxApp.svg
+sources:
+  - type: dir
+    path: ../..
+    skip:
+      - .flatpak-builder
+      - .flatpak-dev
+      - .git
+      - build-flatpak
+      - dist
+      - node_modules
+      - out-tsc

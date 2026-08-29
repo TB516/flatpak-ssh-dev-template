@@ -1,9 +1,0 @@
-id: io.github.example.TemplateApp
-runtime: org.freedesktop.Platform
-runtime-version: "25.08"
-sdk: org.freedesktop.Sdk
-command: template-app
-appstream-compose: false
-
-modules:
-  - modules/app.yml

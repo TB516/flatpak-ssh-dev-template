@@ -1,0 +1,15 @@
+name: util-linux-setpriv
+buildsystem: meson
+config-opts:
+  - -Dauto_features=disabled
+  - -Dbuild-setpriv=enabled
+  - -Dprogram-tests=false
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /share/bash-completion
+  - /share/man
+sources:
+  - type: archive
+    url: https://www.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-2.42.2.tar.xz
+    sha256: 03a05d3adf9602ef128f2da05b84b3205ce60c351e5737c0370f74000679ce8a

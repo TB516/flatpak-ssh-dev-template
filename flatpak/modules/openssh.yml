@@ -5,7 +5,7 @@ build-commands:
     ./configure
     --prefix=/app
     --sysconfdir=/app/etc/ssh
-    --with-default-path=/app/bin:/usr/bin
+    --with-default-path=/app/bin:/usr/lib/sdk/node24/bin:/usr/bin
     --with-pid-dir=/tmp
     --with-privsep-path=/app/var/empty
     --with-privsep-user=${USER}

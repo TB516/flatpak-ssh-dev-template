@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.example.GtkxApp</id>
+  <name>GTKX App</name>
+  <summary>A GTKX application</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>A starter desktop application built with GTKX and libadwaita.</p>
+  </description>
+  <launchable type="desktop-id">io.github.example.GtkxApp.desktop</launchable>
+  <provides>
+    <binary>gtkx-app</binary>
+  </provides>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <content_rating type="oars-1.1" />
+</component>

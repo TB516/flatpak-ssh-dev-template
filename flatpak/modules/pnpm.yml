@@ -1,0 +1,11 @@
+name: pnpm
+buildsystem: simple
+build-commands:
+  - mkdir -p /app/bin /app/lib/pnpm
+  - cp -a bin dist package.json LICENSE /app/lib/pnpm/
+  - ln -s ../lib/pnpm/bin/pnpm.mjs /app/bin/pnpm
+  - ln -s ../lib/pnpm/bin/pnpx.mjs /app/bin/pnpx
+sources:
+  - type: archive
+    url: https://registry.npmjs.org/pnpm/-/pnpm-11.23.0.tgz
+    sha256: 78dcbf44f40cef50d1f4b535ca9961a30edb4b13c420c360bf4068d424a41bc4

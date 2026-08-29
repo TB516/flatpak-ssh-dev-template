@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=GTKX App
+Comment=A GTKX application
+Exec=gtkx-app
+Icon=io.github.example.GtkxApp
+Terminal=false
+Categories=Utility;
+StartupNotify=true

@@ -1,0 +1,43 @@
+name: weston
+buildsystem: meson
+config-opts:
+  - -Dbackend-drm=false
+  - -Dbackend-headless=true
+  - -Dbackend-pipewire=false
+  - -Dbackend-rdp=false
+  - -Dbackend-vnc=false
+  - -Dbackend-wayland=false
+  - -Dbackend-x11=false
+  - -Dbackend-default=headless
+  - -Drenderer-gl=false
+  - -Dxwayland=false
+  - -Dsystemd=false
+  - -Dremoting=false
+  - -Dpipewire=false
+  - -Dscreenshare=false
+  - -Dshell-desktop=true
+  - -Dshell-fullscreen=false
+  - -Dshell-ivi=false
+  - -Dshell-kiosk=false
+  - -Dcolor-management-lcms=false
+  - -Dimage-jpeg=false
+  - -Dimage-webp=false
+  - -Dtools=[]
+  - -Ddemo-clients=false
+  - -Dsimple-clients=[]
+  - -Dresize-pool=false
+  - -Dwcap-decode=false
+  - -Dtests=false
+  - -Dtest-junit-xml=false
+  - -Ddoc=false
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /share/libweston-14
+  - /share/man
+  - /share/pkgconfig
+  - /share/wayland-sessions
+sources:
+  - type: archive
+    url: https://gitlab.freedesktop.org/wayland/weston/-/archive/14.0.2/weston-14.0.2.tar.gz
+    sha256: 633f4e0f232ad150300c95ffcbc646fedf1349487bf389dbd2045fa69013d6e2

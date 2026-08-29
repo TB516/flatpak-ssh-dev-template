@@ -1,0 +1,28 @@
+id: io.github.example.GtkxApp
+runtime: org.gnome.Platform
+runtime-version: "50"
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.node24
+command: gtkx-app
+appstream-compose: false
+
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+
+cleanup:
+  - /bin/pnpm
+  - /bin/pnpx
+  - /include
+  - /lib/pnpm
+  - /lib/pkgconfig
+  - /share/gir-1.0
+  - "*.a"
+  - "*.la"
+
+modules:
+  - modules/pnpm.yml
+  - modules/gtkx-app.yml
