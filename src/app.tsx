@@ -20,5 +20,3 @@ export const App = () => (
     <MainWindow />
   </AdwApplication>
 );
-
-export default App;

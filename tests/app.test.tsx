@@ -1,7 +1,7 @@
 import { rootElement } from "@gtkx/react";
 import { render, screen } from "@gtkx/testing";
 import { describe, expect, it } from "vitest";
-import App from "../src/app.tsx";
+import { App } from "../src/app.tsx";
 
 describe("App", () => {
   it("renders the starter message", async () => {
