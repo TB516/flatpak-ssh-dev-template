@@ -1,0 +1,7 @@
+name: flatpak-dev-environment
+buildsystem: simple
+build-commands:
+  - install -Dm644 .profile /app/share/flatpak-dev/.profile
+sources:
+  - type: file
+    path: ../.profile

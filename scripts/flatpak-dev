@@ -11,12 +11,13 @@ readonly STATE_DIR="$PROJECT_ROOT/.flatpak-dev"
 readonly SSH_DIR="$STATE_DIR/ssh"
 readonly DEV_HOME="$STATE_DIR/home"
 readonly BUILD_DIR="$STATE_DIR/build"
+readonly BUILD_LOCK="$STATE_DIR/build.lock"
 readonly MANIFEST="$PROJECT_ROOT/flatpak/io.github.example.TemplateApp.dev.yml"
 readonly PORT="${FLATPAK_DEV_SSH_PORT:-22222}"
 readonly START_TIMEOUT="${FLATPAK_DEV_SSH_START_TIMEOUT:-1800}"
 readonly CONNECTION_TIMEOUT="${FLATPAK_DEV_SSH_CONNECTION_TIMEOUT:-120}"
 readonly IDLE_TIMEOUT="${FLATPAK_DEV_SSH_IDLE_TIMEOUT:-30}"
-readonly DEV_PATH="/app/bin:/usr/bin"
+readonly DEV_PROFILE="/app/share/flatpak-dev/.profile"
 readonly SANDBOX_HOME="$HOME/.var/app/$APP_ID"
 readonly SSHD_LOG="$SSH_DIR/sshd.log"
 
@@ -105,34 +106,87 @@ service_is_active() {
     systemctl --user is-active --quiet "$SERVICE_NAME"
 }
 
+ref_is_installed() {
+    flatpak info --user "$1" >/dev/null 2>&1 || flatpak info --system "$1" >/dev/null 2>&1
+}
+
 show_service_logs() {
     journalctl --user -u "$SERVICE_NAME" --no-pager -n 40
 }
 
-write_dev_profile() {
+run_with_build_lock() {
+    require_command flock
+    mkdir -p "$STATE_DIR"
+
+    if ! flock --nonblock "$BUILD_LOCK" -c true; then
+        echo "Another flatpak-dev command is building or using the development image." >&2
+        echo "Wait for it to finish, then try again." >&2
+        return 1
+    fi
+
+    local command_status
+    if flock --nonblock --close "$BUILD_LOCK" env FLATPAK_DEV_BUILD_LOCK_HELD=1 "$0" "$@"; then
+        command_status=0
+    else
+        command_status=$?
+    fi
+
+    return "$command_status"
+}
+
+setup_dev_home() {
     mkdir -p "$DEV_HOME"
     chmod 700 "$DEV_HOME"
 
-    cat > "$DEV_HOME/.profile" <<EOF
-export PATH="$DEV_PATH"
-EOF
-    chmod 600 "$DEV_HOME/.profile"
+    ln -sfn "$DEV_PROFILE" "$DEV_HOME/.profile"
+    ln -sfn "$DEV_PROFILE" "$DEV_HOME/.bashrc"
+}
+
+build_dev_image() {
+    require_command flatpak
+    require_command flatpak-builder
+    require_command systemctl
+
+    if service_is_active; then
+        echo "The Flatpak development service is using $BUILD_DIR." >&2
+        echo "Run '$0 stop' before building or running a one-off command." >&2
+        return 1
+    fi
+
+    local builder_args=(
+        --user
+        --force-clean
+        --state-dir="$STATE_DIR/builder-state"
+    )
+
+    if ! ref_is_installed "org.freedesktop.Sdk//25.08"; then
+        builder_args+=(--install-deps-from=flathub)
+    fi
+
+    local builder_status
+    if flatpak-builder "${builder_args[@]}" "$BUILD_DIR" "$MANIFEST"; then
+        builder_status=0
+    else
+        builder_status=$?
+    fi
+
+    if ((builder_status != 0)); then
+        return "$builder_status"
+    fi
+
+    setup_dev_home
 }
 
 run_command() {
-    require_command flatpak-builder
-
     if (($# == 0)); then
         echo "Usage: $0 run <command> [args...]" >&2
         exit 2
     fi
 
-    if [[ ! -d "$BUILD_DIR/files" ]]; then
-        echo "The development Flatpak has not been built. Run '$0 start' first." >&2
-        exit 1
-    fi
+    build_dev_image
 
-    write_dev_profile
+    local flatpak_arch
+    flatpak_arch="$(flatpak --default-arch)"
 
     flatpak-builder \
         --run \
@@ -141,6 +195,9 @@ run_command() {
         "$MANIFEST" \
         env \
         "HOME=$DEV_HOME" \
+        "BASH_ENV=$DEV_PROFILE" \
+        "ENV=$DEV_PROFILE" \
+        "FLATPAK_ARCH=$flatpak_arch" \
         "FLATPAK_DEV_PROJECT_ROOT=$PROJECT_ROOT" \
         /bin/sh \
         -c '. "$HOME/.profile"; cd "$FLATPAK_DEV_PROJECT_ROOT"; exec "$@"' \
@@ -155,13 +212,16 @@ start_service() {
     require_command ss
     validate_settings
 
-    if ! service_is_active; then
+    if service_is_active; then
+        echo "The Flatpak development service is already running; the image was not rebuilt."
+    else
         if port_is_listening; then
             echo "Port $PORT is already in use. Nothing was stopped." >&2
             echo "Close the process using it or set FLATPAK_DEV_SSH_PORT to another port." >&2
             exit 1
         fi
 
+        build_dev_image
         systemctl --user reset-failed "$SERVICE_NAME" 2>/dev/null || true
 
         local systemd_args=(
@@ -202,7 +262,7 @@ start_service() {
         fi
 
         if ((SECONDS >= next_update)); then
-            echo "The Flatpak build is still running. Use '$0 logs' to see its output."
+            echo "The Flatpak SSH service is still starting. Use '$0 logs' to see its output."
             next_update=$((SECONDS + 10))
         fi
 
@@ -227,6 +287,17 @@ stop_service() {
 }
 
 case "${1:-start}" in
+    start|build|run)
+        if [[ "${FLATPAK_DEV_BUILD_LOCK_HELD:-}" != 1 ]]; then
+            run_with_build_lock "$@"
+            exit
+        fi
+
+        unset FLATPAK_DEV_BUILD_LOCK_HELD
+        ;;
+esac
+
+case "${1:-start}" in
     start)
         start_service
         exit
@@ -245,6 +316,10 @@ case "${1:-start}" in
         journalctl --user -u "$SERVICE_NAME" -f
         exit
         ;;
+    build)
+        build_dev_image
+        exit
+        ;;
     run)
         shift
         run_command "$@"
@@ -253,24 +328,22 @@ case "${1:-start}" in
     serve)
         ;;
     *)
-        echo "Usage: $0 [start|stop|status|logs|run <command> [args...]]" >&2
+        echo "Usage: $0 [build|start|stop|status|logs|run <command> [args...]]" >&2
         exit 2
         ;;
 esac
 
 require_command flatpak
-require_command flatpak-builder
 require_command ssh
 require_command ssh-keygen
 require_command ss
 validate_settings
 
 readonly FLATPAK_ARCH="$(flatpak --default-arch)"
-readonly RUNTIME_LIBDIR="/usr/lib/$FLATPAK_ARCH-linux-gnu"
 
 mkdir -p "$SSH_DIR"
 chmod 700 "$SSH_DIR"
-write_dev_profile
+setup_dev_home
 
 trap cleanup EXIT
 trap 'exit 129' HUP
@@ -281,34 +354,6 @@ if port_is_listening; then
     echo "Port $PORT is already in use. Nothing was stopped." >&2
     echo "Close the process using it or set FLATPAK_DEV_SSH_PORT to another port." >&2
     exit 1
-fi
-
-builder_args=(
-    --user
-    --force-clean
-    --state-dir="$STATE_DIR/builder-state"
-)
-
-if [[ -d "$BUILD_DIR/files" ]]; then
-    builder_args+=(--skip-if-unchanged)
-fi
-
-has_flatpak_ref() {
-    flatpak info --user "$1" >/dev/null 2>&1 || flatpak info --system "$1" >/dev/null 2>&1
-}
-
-if ! has_flatpak_ref "org.freedesktop.Sdk//25.08"; then
-    builder_args+=(--install-deps-from=flathub)
-fi
-
-if flatpak-builder "${builder_args[@]}" "$BUILD_DIR" "$MANIFEST"; then
-    builder_status=0
-else
-    builder_status=$?
-fi
-
-if ((builder_status != 0 && builder_status != 42)); then
-    exit "$builder_status"
 fi
 
 if [[ ! -f "$SSH_DIR/id_ed25519" ]]; then
@@ -341,7 +386,7 @@ PermitTunnel no
 GatewayPorts no
 UseDNS no
 Subsystem sftp internal-sftp
-SetEnv HOME=$DEV_HOME BASH_ENV=$DEV_HOME/.profile ENV=$DEV_HOME/.profile PATH=$DEV_PATH FLATPAK_ID=$APP_ID FLATPAK_ARCH=$FLATPAK_ARCH container=flatpak DBUS_SESSION_BUS_ADDRESS=unix:path=/run/flatpak/bus LD_LIBRARY_PATH=/app/lib:$RUNTIME_LIBDIR/GL/default/lib PKG_CONFIG_PATH=/app/lib/pkgconfig:/app/share/pkgconfig C_INCLUDE_PATH=/app/include CPLUS_INCLUDE_PATH=/app/include LDFLAGS=-L/app/lib WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0} XDG_RUNTIME_DIR=/run/user/$(id -u) XDG_CACHE_HOME=$SANDBOX_HOME/cache XDG_CONFIG_HOME=$SANDBOX_HOME/config XDG_DATA_HOME=$SANDBOX_HOME/data XDG_STATE_HOME=$SANDBOX_HOME/.local/state XDG_CONFIG_DIRS=/app/etc/xdg:/etc/xdg XDG_DATA_DIRS=/app/share:/usr/share:/usr/share/runtime/share:/run/host/user-share:/run/host/share
+SetEnv HOME=$DEV_HOME BASH_ENV=$DEV_PROFILE ENV=$DEV_PROFILE FLATPAK_ID=$APP_ID FLATPAK_ARCH=$FLATPAK_ARCH WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0} XDG_RUNTIME_DIR=/run/user/$(id -u) XDG_CACHE_HOME=$SANDBOX_HOME/cache XDG_CONFIG_HOME=$SANDBOX_HOME/config XDG_DATA_HOME=$SANDBOX_HOME/data XDG_STATE_HOME=$SANDBOX_HOME/.local/state
 EOF
 chmod 600 "$SSH_DIR/sshd_config"
 

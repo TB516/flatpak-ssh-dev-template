@@ -1,0 +1,11 @@
+# Static configuration shared by login, interactive, and non-interactive Bash.
+export PATH="/app/bin:/usr/bin"
+export container="flatpak"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/flatpak/bus"
+export LD_LIBRARY_PATH="/app/lib:/usr/lib/$FLATPAK_ARCH-linux-gnu/GL/default/lib"
+export PKG_CONFIG_PATH="/app/lib/pkgconfig:/app/share/pkgconfig"
+export C_INCLUDE_PATH="/app/include"
+export CPLUS_INCLUDE_PATH="/app/include"
+export LDFLAGS="-L/app/lib"
+export XDG_CONFIG_DIRS="/app/etc/xdg:/etc/xdg"
+export XDG_DATA_DIRS="/app/share:/usr/share:/usr/share/runtime/share:/run/host/user-share:/run/host/share"
