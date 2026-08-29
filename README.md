@@ -1,14 +1,16 @@
 # Flatpak SSH development template
 
-This repository is a language-neutral starting point for developing inside a Flatpak SDK with VS Code Remote-SSH. The host only needs VS Code, Flatpak, flatpak-builder, OpenSSH client tools, `ss`, and a systemd user session.
+This repository is a language-neutral starting point for developing inside a Flatpak SDK with VS Code Remote-SSH. The host only needs VS Code, Flatpak, flatpak-builder, OpenSSH client tools, `flock`, `ss`, and a systemd user session.
 
-The development manifest builds OpenSSH inside the SDK. The launcher builds the manifest into `.flatpak-dev`, creates project-local SSH keys and a development home, then runs the sandbox as a transient systemd user service. It does not install the Flatpak application.
+Project-specific templates should customize the manifests and profile or build on this repository. Keep the host orchestration here instead of maintaining a separate launcher implementation for each toolkit or language.
+
+The development manifest builds OpenSSH inside the SDK and installs the checked-in [`flatpak/.profile`](flatpak/.profile). The launcher builds the manifest into `.flatpak-dev`, creates project-local SSH keys and a persistent development home, then runs the sandbox as a transient systemd user service. It does not install the Flatpak application.
 
 ## Use this template
 
 1. Replace `io.github.example.TemplateApp` in the manifests and launcher with the application ID.
 2. Replace the placeholder [`flatpak/app`](flatpak/app) command and update [`flatpak/modules/app.yml`](flatpak/modules/app.yml) for the application build.
-3. Add language SDK extensions or build modules to both manifests where needed. Add extension tool directories to `DEV_PATH` in [`scripts/flatpak-dev`](scripts/flatpak-dev).
+3. Add language SDK extensions or build modules to both manifests where needed. Add development shell paths and tool settings to [`flatpak/.profile`](flatpak/.profile).
 4. Add the application's production permissions to `finish-args` in the production manifest. Keep development-only permissions in the development manifest.
 
 The production manifest uses a local directory source. Pin that source to a repository and commit when preparing a published manifest.
@@ -31,7 +33,15 @@ To run a one-off command in the development Flatpak from the host, use:
 ./scripts/flatpak-dev run /bin/sh -c 'your-command'
 ```
 
-The `run` command uses the development home and its generated profile without starting the application.
+The `run` command incrementally updates the development image, then uses the persistent development home without starting SSH. Build the image without running a command or starting SSH with:
+
+```sh
+./scripts/flatpak-dev build
+```
+
+Flatpak Builder reuses its normal module cache. Changes to development manifest modules, OpenSSH, SDK extensions, or files installed into `/app` rebuild the affected modules. Project source, package manifests, and lockfiles do not rebuild the development image unless a manifest declares them as sources. Install project dependencies with the project's package manager inside the development Flatpak.
+
+The manifest installs one profile at `/app/share/flatpak-dev/.profile`. The launcher links both `$HOME/.profile` and `$HOME/.bashrc` to it so login and interactive Bash shells use the same configuration. Non-interactive Bash commands use the same file through `BASH_ENV`. Keep host-specific values such as `HOME`, the Flatpak architecture, display sockets, and persistent XDG directories in the launcher.
 
 ### Optional automatic startup
 
@@ -53,6 +63,8 @@ The transient service stops 30 seconds after the remote window disconnects, or a
 ./scripts/flatpak-dev status
 ./scripts/flatpak-dev logs
 ```
+
+`start` updates the image before starting SSH. If the service is already running, it reports that state and does not claim to have checked for build changes. `build`, `run`, and `start` use `.flatpak-dev/build.lock` to prevent concurrent access to the development image. `build` and `run` also refuse to update `.flatpak-dev/build` while the service is active. Stop the service first, then rebuild or run the command.
 
 Use another port when `22222` is occupied:
 
