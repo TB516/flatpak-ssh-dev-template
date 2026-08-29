@@ -1,16 +1,24 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "Preserve",
     "jsx": "react-jsx",
-    "strict": true,
-    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
-    "lib": ["esnext"],
-    "types": ["node", "react"],
-    "outDir": "out-tsc",
-    "rootDir": "src"
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "erasableSyntaxOnly": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@gtkx/gi/*": ["./node_modules/.gtkx/gi/*/index.d.ts", "./node_modules/.gtkx/gi/*.d.ts"],
+      "@gtkx/jsx/*": ["./node_modules/.gtkx/jsx/*/index.d.ts", "./node_modules/.gtkx/jsx/*.d.ts"]
+    }
   },
-  "include": ["src/**/*"]
+  "include": ["src", "tests", "*.config.ts"]
 }
