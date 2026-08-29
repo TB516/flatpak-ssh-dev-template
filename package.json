@@ -19,18 +19,18 @@
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test --run"
   },
   "dependencies": {
-    "@gtkx/cairo": "^1.3.0",
-    "@gtkx/css": "^1.3.0",
-    "@gtkx/native": "^1.3.0",
-    "@gtkx/react": "^1.3.0",
-    "@gtkx/runtime": "^1.3.0",
+    "@gtkx/cairo": "^1.6.0",
+    "@gtkx/css": "^1.6.0",
+    "@gtkx/native": "^1.6.0",
+    "@gtkx/react": "^1.6.0",
+    "@gtkx/runtime": "^1.6.0",
     "react": "^19.2.8"
   },
   "devDependencies": {
-    "@gtkx/cli": "^1.3.0",
-    "@gtkx/config": "^1.3.0",
-    "@gtkx/testing": "^1.3.0",
-    "@gtkx/vitest": "^1.3.0",
+    "@gtkx/cli": "^1.6.0",
+    "@gtkx/config": "^1.6.0",
+    "@gtkx/testing": "^1.6.0",
+    "@gtkx/vitest": "^1.6.0",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "oxfmt": "^0.64.0",
