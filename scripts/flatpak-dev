@@ -106,31 +106,33 @@ service_is_active() {
     systemctl --user is-active --quiet "$SERVICE_NAME"
 }
 
-ref_is_installed() {
-    flatpak info --user "$1" >/dev/null 2>&1 || flatpak info --system "$1" >/dev/null 2>&1
-}
-
 show_service_logs() {
     journalctl --user -u "$SERVICE_NAME" --no-pager -n 40
 }
 
-run_with_build_lock() {
+with_build_lock() {
     require_command flock
     mkdir -p "$STATE_DIR"
 
-    if ! flock --nonblock "$BUILD_LOCK" -c true; then
-        echo "Another flatpak-dev command is building or using the development image." >&2
+    local lock_fd
+    exec {lock_fd}> "$BUILD_LOCK"
+
+    if ! flock --nonblock "$lock_fd"; then
+        exec {lock_fd}>&-
+        echo "Another flatpak-dev command is building the development image." >&2
         echo "Wait for it to finish, then try again." >&2
         return 1
     fi
 
     local command_status
-    if flock --nonblock --close "$BUILD_LOCK" env FLATPAK_DEV_BUILD_LOCK_HELD=1 "$0" "$@"; then
+    if "$@"; then
         command_status=0
     else
         command_status=$?
     fi
 
+    flock --unlock "$lock_fd"
+    exec {lock_fd}>&-
     return "$command_status"
 }
 
@@ -149,7 +151,7 @@ build_dev_image() {
 
     if service_is_active; then
         echo "The Flatpak development service is using $BUILD_DIR." >&2
-        echo "Run '$0 stop' before building or running a one-off command." >&2
+        echo "Run '$0 stop' before rebuilding the development image." >&2
         return 1
     fi
 
@@ -158,10 +160,6 @@ build_dev_image() {
         --force-clean
         --state-dir="$STATE_DIR/builder-state"
     )
-
-    if ! ref_is_installed "org.freedesktop.Sdk//25.08"; then
-        builder_args+=(--install-deps-from=flathub)
-    fi
 
     local builder_status
     if flatpak-builder "${builder_args[@]}" "$BUILD_DIR" "$MANIFEST"; then
@@ -177,76 +175,100 @@ build_dev_image() {
     setup_dev_home
 }
 
-run_command() {
-    if (($# == 0)); then
-        echo "Usage: $0 run <command> [args...]" >&2
-        exit 2
-    fi
-
-    build_dev_image
-
+run_in_dev_image() {
     local flatpak_arch
     flatpak_arch="$(flatpak --default-arch)"
 
-    flatpak-builder \
-        --run \
+    flatpak build \
+        --die-with-parent \
+        --readonly \
+        --with-appdir \
+        --talk-name=org.freedesktop.DBus \
         --filesystem="$PROJECT_ROOT" \
+        --env="HOME=$DEV_HOME" \
+        --env="BASH_ENV=$DEV_PROFILE" \
+        --env="ENV=$DEV_PROFILE" \
+        --env="FLATPAK_ARCH=$flatpak_arch" \
+        --env="FLATPAK_DEV_PROJECT_ROOT=$PROJECT_ROOT" \
         "$BUILD_DIR" \
-        "$MANIFEST" \
-        env \
-        "HOME=$DEV_HOME" \
-        "BASH_ENV=$DEV_PROFILE" \
-        "ENV=$DEV_PROFILE" \
-        "FLATPAK_ARCH=$flatpak_arch" \
-        "FLATPAK_DEV_PROJECT_ROOT=$PROJECT_ROOT" \
         /bin/sh \
         -c '. "$HOME/.profile"; cd "$FLATPAK_DEV_PROJECT_ROOT"; exec "$@"' \
         sh \
         "$@"
 }
 
-start_service() {
-    require_command systemctl
-    require_command systemd-run
-    require_command ssh
-    require_command ss
-    validate_settings
-
-    if service_is_active; then
-        echo "The Flatpak development service is already running; the image was not rebuilt."
-    else
-        if port_is_listening; then
-            echo "Port $PORT is already in use. Nothing was stopped." >&2
-            echo "Close the process using it or set FLATPAK_DEV_SSH_PORT to another port." >&2
-            exit 1
-        fi
-
-        build_dev_image
-        systemctl --user reset-failed "$SERVICE_NAME" 2>/dev/null || true
-
-        local systemd_args=(
-            --user
-            --unit="$SERVICE_NAME"
-            --collect
-            --property=Type=exec
-            --working-directory="$PROJECT_ROOT"
-            --setenv="FLATPAK_DEV_APP_ID=$APP_ID"
-            --setenv="FLATPAK_DEV_SSH_HOST=$SSH_HOST"
-            --setenv="FLATPAK_DEV_SSH_PORT=$PORT"
-            --setenv="FLATPAK_DEV_SSH_CONNECTION_TIMEOUT=$CONNECTION_TIMEOUT"
-            --setenv="FLATPAK_DEV_SSH_IDLE_TIMEOUT=$IDLE_TIMEOUT"
-        )
-
-        local name
-        for name in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS; do
-            if [[ -v "$name" ]]; then
-                systemd_args+=(--setenv="$name=${!name}")
-            fi
-        done
-
-        systemd-run "${systemd_args[@]}" "$PROJECT_ROOT/scripts/flatpak-dev" serve
+run_command() {
+    if (($# == 0)); then
+        echo "Usage: $0 run <command> [args...]" >&2
+        exit 2
     fi
 
+    require_command flatpak
+    require_command systemctl
+
+    if service_is_active; then
+        run_in_dev_image "$@"
+        return
+    fi
+
+    local build_status
+    if with_build_lock build_dev_image; then
+        build_status=0
+    else
+        build_status=$?
+    fi
+
+    if ((build_status != 0)); then
+        if service_is_active; then
+            run_in_dev_image "$@"
+            return
+        fi
+
+        return "$build_status"
+    fi
+
+    run_in_dev_image "$@"
+}
+
+launch_service() {
+    if service_is_active; then
+        echo "The Flatpak development service is already running; the image was not rebuilt."
+        return
+    fi
+
+    if port_is_listening; then
+        echo "Port $PORT is already in use. Nothing was stopped." >&2
+        echo "Close the process using it or set FLATPAK_DEV_SSH_PORT to another port." >&2
+        return 1
+    fi
+
+    build_dev_image
+    systemctl --user reset-failed "$SERVICE_NAME" 2>/dev/null || true
+
+    local systemd_args=(
+        --user
+        --unit="$SERVICE_NAME"
+        --collect
+        --property=Type=exec
+        --working-directory="$PROJECT_ROOT"
+        --setenv="FLATPAK_DEV_APP_ID=$APP_ID"
+        --setenv="FLATPAK_DEV_SSH_HOST=$SSH_HOST"
+        --setenv="FLATPAK_DEV_SSH_PORT=$PORT"
+        --setenv="FLATPAK_DEV_SSH_CONNECTION_TIMEOUT=$CONNECTION_TIMEOUT"
+        --setenv="FLATPAK_DEV_SSH_IDLE_TIMEOUT=$IDLE_TIMEOUT"
+    )
+
+    local name
+    for name in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS; do
+        if [[ -v "$name" ]]; then
+            systemd_args+=(--setenv="$name=${!name}")
+        fi
+    done
+
+    systemd-run "${systemd_args[@]}" "$PROJECT_ROOT/scripts/flatpak-dev" serve
+}
+
+wait_for_service() {
     local deadline=$((SECONDS + START_TIMEOUT))
     local next_update=$((SECONDS + 10))
     while ((SECONDS < deadline)); do
@@ -274,6 +296,22 @@ start_service() {
     exit 1
 }
 
+start_service() {
+    require_command systemctl
+    require_command systemd-run
+    require_command ssh
+    require_command ss
+    validate_settings
+
+    if service_is_active; then
+        echo "The Flatpak development service is already running; the image was not rebuilt."
+    else
+        with_build_lock launch_service
+    fi
+
+    wait_for_service
+}
+
 stop_service() {
     require_command systemctl
 
@@ -285,17 +323,6 @@ stop_service() {
     systemctl --user stop "$SERVICE_NAME"
     echo "The Flatpak development service stopped."
 }
-
-case "${1:-start}" in
-    start|build|run)
-        if [[ "${FLATPAK_DEV_BUILD_LOCK_HELD:-}" != 1 ]]; then
-            run_with_build_lock "$@"
-            exit
-        fi
-
-        unset FLATPAK_DEV_BUILD_LOCK_HELD
-        ;;
-esac
 
 case "${1:-start}" in
     start)
@@ -317,7 +344,7 @@ case "${1:-start}" in
         exit
         ;;
     build)
-        build_dev_image
+        with_build_lock build_dev_image
         exit
         ;;
     run)

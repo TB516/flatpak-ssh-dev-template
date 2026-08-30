@@ -17,6 +17,8 @@ The production manifest uses a local directory source. Pin that source to a repo
 
 ## Development
 
+Install the runtime, SDK, and SDK extensions declared by the development manifest before the first build. The launcher does not install or update Flatpak dependencies.
+
 Start the environment from the host:
 
 ```sh
@@ -33,7 +35,7 @@ To run a one-off command in the development Flatpak from the host, use:
 ./scripts/flatpak-dev run /bin/sh -c 'your-command'
 ```
 
-The `run` command incrementally updates the development image, then uses the persistent development home without starting SSH. Build the image without running a command or starting SSH with:
+When the SSH service is inactive, `run` rebuilds the development image using Flatpak Builder's module cache. When the service is active, it leaves the image and SSH session alone. Both paths run the command with `flatpak build`, the persistent development home, and the same environment. Build the image without running a command or starting SSH with:
 
 ```sh
 ./scripts/flatpak-dev build
@@ -64,7 +66,7 @@ The transient service stops 30 seconds after the remote window disconnects, or a
 ./scripts/flatpak-dev logs
 ```
 
-`start` updates the image before starting SSH. If the service is already running, it reports that state and does not claim to have checked for build changes. `build`, `run`, and `start` use `.flatpak-dev/build.lock` to prevent concurrent access to the development image. `build` and `run` also refuse to update `.flatpak-dev/build` while the service is active. Stop the service first, then rebuild or run the command.
+`start` rebuilds the image before starting SSH. If the service is already running, it reports that state and leaves the image alone. `build` holds `.flatpak-dev/build.lock` while rebuilding. `start` holds it while rebuilding and launching the service, then releases it before waiting for SSH. An inactive-service `run` holds the lock only while rebuilding. An active-service `run` skips the rebuild. `build` still refuses to update `.flatpak-dev/build` while the service is active.
 
 Use another port when `22222` is occupied:
 
