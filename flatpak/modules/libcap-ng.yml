@@ -4,15 +4,9 @@ config-opts:
   - --without-python3
   - --disable-static
   - --disable-cap-audit
+# Needed for headless tests, excluded from the packaged app.
 cleanup:
-  - /bin
-  - /include
-  - /lib/pkgconfig
-  - /lib/*.la
-  - /lib/libdrop_ambient*
-  - /share/aclocal
-  - /share/bash-completion
-  - /share/man
+  - "*"
 sources:
   - type: archive
     url: https://github.com/stevegrubb/libcap-ng/archive/refs/tags/v0.9.3.tar.gz

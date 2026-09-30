@@ -1,14 +1,14 @@
 name: util-linux-setpriv
 buildsystem: meson
+modules:
+  - libcap-ng.yml
 config-opts:
   - -Dauto_features=disabled
   - -Dbuild-setpriv=enabled
   - -Dprogram-tests=false
+# Needed for headless tests, excluded from the packaged app.
 cleanup:
-  - /include
-  - /lib/pkgconfig
-  - /share/bash-completion
-  - /share/man
+  - "*"
 sources:
   - type: archive
     url: https://www.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-2.42.2.tar.xz

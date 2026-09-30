@@ -23,11 +23,7 @@
   },
   "search.followSymlinks": false,
   "yaml.schemas": {
-    "https://www.schemastore.org/flatpak-manifest.json": [
-      "flatpak/io.github.example.GtkxApp.dev.yml",
-      "flatpak/io.github.example.GtkxApp.yml",
-      "flatpak/modules/libcap-ng.yml"
-    ]
+    "https://www.schemastore.org/flatpak-manifest.json": ["flatpak/io.github.example.GtkxApp.yml"]
   },
   "js/ts.experimental.useTsgo": true,
   "js/ts.tsdk.path": "./node_modules/typescript"

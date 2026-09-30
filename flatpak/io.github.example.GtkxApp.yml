@@ -24,5 +24,6 @@ cleanup:
   - "*.la"
 
 modules:
+  - modules/gtkx-test-tools.yml
   - modules/pnpm.yml
   - modules/gtkx-app.yml

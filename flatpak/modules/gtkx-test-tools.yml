@@ -1,0 +1,6 @@
+name: gtkx-test-tools
+buildsystem: simple
+build-commands: []
+modules:
+  - weston.yml
+  - util-linux-setpriv.yml

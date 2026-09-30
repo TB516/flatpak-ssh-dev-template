@@ -1,5 +1,7 @@
 name: weston
 buildsystem: meson
+modules:
+  - libinput.yml
 config-opts:
   - -Dbackend-drm=false
   - -Dbackend-headless=true
@@ -30,13 +32,9 @@ config-opts:
   - -Dtests=false
   - -Dtest-junit-xml=false
   - -Ddoc=false
+# Needed for headless tests, excluded from the packaged app.
 cleanup:
-  - /include
-  - /lib/pkgconfig
-  - /share/libweston-14
-  - /share/man
-  - /share/pkgconfig
-  - /share/wayland-sessions
+  - "*"
 sources:
   - type: archive
     url: https://gitlab.freedesktop.org/wayland/weston/-/archive/14.0.2/weston-14.0.2.tar.gz

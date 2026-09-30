@@ -1,0 +1,33 @@
+[tools]
+"github:TB516/flatpak-dev-cli" = "0.1.0"
+
+[tasks.build]
+description = "Build the GTKX app Flatpak bundle"
+dir = "{{config_root}}"
+shell = "bash -euo pipefail -c"
+run = '''
+app_id="io.github.example.GtkxApp"
+state_dir="$PWD/build-flatpak"
+bundle="$state_dir/$app_id.flatpak"
+
+mkdir -p "$state_dir"
+
+flatpak-builder \
+    --user \
+    --force-clean \
+    --state-dir="$state_dir/builder-state" \
+    --repo="$state_dir/repo" \
+    "$state_dir/build" \
+    "flatpak/$app_id.yml"
+
+flatpak build-bundle \
+    --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo \
+    "$state_dir/repo" \
+    "$bundle" \
+    "$app_id"
+
+echo
+echo "Built $bundle"
+echo "Install it with:"
+echo "    flatpak install --user --or-update '$bundle'"
+'''

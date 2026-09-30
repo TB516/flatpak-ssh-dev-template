@@ -1,110 +1,63 @@
 # GTKX Flatpak app template
 
-A small GTKX application with its editor, package manager, compiler, tests, and language servers running inside a Flatpak SDK. The host does not need Node.js, pnpm, GTK development packages, or Weston.
+A starter GTKX desktop app with TypeScript tooling, headless tests, and Flatpak packaging. Development commands and SSH editors use a shared Flatpak SDK sandbox through [flatpak-dev](https://github.com/TB516/flatpak-dev-cli).
 
 ## Customize the app
 
-1. Replace `io.github.example.GtkxApp` throughout the repository with the application ID.
-2. Change the package name and description in [`package.json`](package.json).
-3. Replace the starter window in [`src/app.tsx`](src/app.tsx).
-4. Update the desktop file, metainfo, icon, command, and Flatpak permissions for the application.
+1. Replace `io.github.example.GtkxApp` throughout the repository with your application ID.
+2. Change the package name and description in `package.json`.
+3. Replace the starter window in `src/app.tsx`.
+4. Update the desktop file, metainfo, icon, command, and Flatpak permissions for your application.
 
-The production manifest uses the local repository as its source. Pin it to a repository and commit when preparing a published manifest.
+The application manifest uses the local checkout as its source. Pin it to a repository and commit when preparing a published manifest.
 
 ## Development
 
-The host needs:
-
-- VS Code with Remote - SSH
-- Flatpak and flatpak-builder
-- A systemd user session
-- `flock`, `ssh`, `ssh-keygen`, and `ss`
-
-Install the runtime, SDK, and SDK extensions declared by the development manifest before the first build. The launcher does not install or update Flatpak dependencies.
-
-Start the development environment from a host terminal:
+The host needs mise, Flatpak, Flatpak Builder, the OpenSSH client tools, and a systemd user session. Install the runtime, SDK, and Node extension:
 
 ```sh
-./scripts/flatpak-dev
+flatpak install --user flathub org.gnome.Platform//50 org.gnome.Sdk//50 org.freedesktop.Sdk.Extension.node24//25.08
 ```
 
-On the first run, add the printed `Include` line near the top of the host `~/.ssh/config`, before broad `Host *` blocks. Connect with Remote-SSH to the printed host and open the printed repository path.
-
-The SSH host defaults to `<repository-directory>-flatpak`. Override it with `FLATPAK_DEV_SSH_HOST` if needed.
-
-Inside the remote VS Code window:
+From this checkout, install the CLI pinned in `mise.toml` and run commands inside the SDK:
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm dev
+mise install
+mise exec -- flatpak-dev run -- pnpm install --frozen-lockfile
+mise exec -- flatpak-dev run -- pnpm dev
 ```
 
-Use `pnpm check` to run code generation, type checking, linting, formatting checks, and tests.
-
-To run a one-off command in the development Flatpak from the host, use:
+Use `pnpm check` to run code generation, type checking, linting, formatting checks, and tests:
 
 ```sh
-./scripts/flatpak-dev run pnpm check
+mise exec -- flatpak-dev run -- pnpm check
+mise exec -- flatpak-dev run -- pnpm build
 ```
 
-When the SSH service is inactive, `run` rebuilds the development image using Flatpak Builder's module cache. When the service is active, it leaves the image and SSH session alone. Both paths run the command with `flatpak build`, the persistent development home, and the same environment. Build the image without running a command or starting SSH with:
+`flatpak/.profile` configures persistent pnpm directories and disables GTK accessibility for development. Keep SDK extensions and build dependencies in the application manifest. Headless test tools are grouped under `flatpak/modules/gtkx-test-tools.yml` and removed from the packaged app.
+
+### Connect an editor
 
 ```sh
-./scripts/flatpak-dev build
+mise exec -- flatpak-dev ssh config
 ```
 
-Flatpak Builder reuses its normal module cache. Changes to development manifest modules, OpenSSH, SDK extensions, or files installed into `/app` rebuild the affected modules. Project source, package manifests, and the lockfile do not rebuild the development image because the development manifest does not declare them as sources. Install dependencies with pnpm inside the development Flatpak.
+Add the printed `Include` line near the top of `~/.ssh/config`. Connect to the printed host from Zed, VS Code, or another SSH editor, then open the printed checkout path. Inside the editor's remote terminal, run `pnpm` commands directly.
 
-The manifest installs [`flatpak/.profile`](flatpak/.profile) at `/app/share/flatpak-dev/.profile`. The launcher links both `$HOME/.profile` and `$HOME/.bashrc` to it so login and interactive Bash shells use the same configuration. Non-interactive Bash commands use it through `BASH_ENV`.
+For a terminal from the host, use `mise exec -- flatpak-dev ssh connect`.
 
-The launcher builds directly into `.flatpak-dev` and does not install the Flatpak application. It runs as a transient systemd user service, so the launcher does not need an open terminal. The service stops 30 seconds after the remote window disconnects, or after 120 seconds if no connection arrives.
+Commands and editors start or reuse the same sandbox. It stops 30 seconds after the last connection closes. After changing manifest dependencies, close the connections, let it stop, and reconnect. After upgrading the CLI, run `ssh config` again.
 
-Control or inspect it manually with:
+## Build the Flatpak app
+
+Build the installable Flatpak bundle from the host:
 
 ```sh
-./scripts/flatpak-dev start
-./scripts/flatpak-dev stop
-./scripts/flatpak-dev status
-./scripts/flatpak-dev logs
+mise run build
 ```
 
-`start` rebuilds the image before starting SSH. If the service is already running, it reports that state and leaves the image alone. `build` holds `.flatpak-dev/build.lock` while rebuilding. `start` holds it while rebuilding and launching the service, then releases it before waiting for SSH. An inactive-service `run` holds the lock only while rebuilding. An active-service `run` skips the rebuild. `build` still refuses to update `.flatpak-dev/build` while the service is active.
-
-Use another port when `22222` is occupied:
-
-```sh
-FLATPAK_DEV_SSH_PORT=22223 ./scripts/flatpak-dev
-```
-
-### Optional automatic startup
-
-Remote-SSH can run the launcher before connecting. Add this optional host user or profile setting with the repository's actual path and generated SSH host:
-
-```json
-"remote.SSH.preconnect": {
-  "gtkx-app-template-flatpak": "/absolute/path/to/gtkx-app-template/scripts/flatpak-dev"
-}
-```
-
-Remote-SSH currently marks this setting as experimental. Without it, run the launcher before connecting.
-
-## Production build
-
-Build and run the application from a build directory without installing it:
-
-```sh
-flatpak-builder --user --force-clean \
-  --state-dir=.flatpak-dev/prod-builder-state \
-  .flatpak-dev/app-build \
-  flatpak/io.github.example.GtkxApp.yml
-
-flatpak-builder --run \
-  --state-dir=.flatpak-dev/prod-builder-state \
-  .flatpak-dev/app-build \
-  flatpak/io.github.example.GtkxApp.yml \
-  gtkx-app
-```
+The task builds the app inside the SDK, writes `build-flatpak/io.github.example.GtkxApp.flatpak`, and prints its installation command.
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+MIT. See [LICENSE](LICENSE).
